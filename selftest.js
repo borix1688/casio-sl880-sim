@@ -43,7 +43,7 @@ global.AudioContext = class {
   constructor() { this.currentTime = 0; this.state = "running"; this.destination = {}; }
   createOscillator() { return new FakeOsc(); }
   createGain() { return new FakeGain(); }
-  resume() {}
+  resume() { return Promise.resolve(); }
 };
 
 const els = {};
@@ -56,6 +56,8 @@ global.document = {
   addEventListener: (t, f) => { (handlers[t] = handlers[t] || []).push(f); },
 };
 global.window = global;
+// 模擬 window.addEventListener（window === global，主程式的 pageshow 監聽會用到）
+global.addEventListener = (t, f) => { (handlers[t] = handlers[t] || []).push(f); };
 global.requestAnimationFrame = (fn) => { rafCb = fn; };
 
 // ---- 執行受測腳本 ----
@@ -189,6 +191,26 @@ function switchTo(sw) {
 }
 
 (async function () {
+  console.log("\n=== 音效 / 解鎖 ===");
+  frames(1);
+  ok(!!els["audio-state"], "面板有音訊狀態指示元素");
+  const beforeTest = toneCount;
+  els["btn-sound-test"]._listeners.click.forEach((f) => f({}));
+  frames(1);
+  ok(toneCount - beforeTest >= 4, "「測試音效」會發出 4 個音（實際 " + (toneCount - beforeTest) + "）");
+  ok(String(els["audio-state"].textContent).indexOf("running") >= 0,
+    "音訊狀態顯示 running", els["audio-state"].textContent);
+  ok(els["audio-state"]._cls.has("ok"), "狀態標記為正常（class=ok）");
+  ok((handlers.pointerdown || []).length > 0, "有註冊手勢解鎖監聽（pointerdown）");
+  let threw = null;
+  try { (handlers.pointerdown || []).forEach((f) => f({})); (handlers.touchstart || []).forEach((f) => f({})); }
+  catch (e) { threw = e.message; }
+  ok(threw === null, "手勢解鎖不會丟錯", threw);
+  let volErr = null;
+  try { els["opt-vol"]._listeners.input.forEach((f) => f({ target: { value: "0.4" } })); }
+  catch (e) { volErr = e.message; }
+  ok(volErr === null, "音量滑桿可運作不丟錯", volErr);
+
   console.log("\n=== MG-880 旋律模式 / 模式開關 ===");
   clickKey("ac"); frames(1);
 
