@@ -1,0 +1,7 @@
+﻿# 測試/預覽用的暫存產物
+_check.js
+_preview_game.html
+_selftest.js
+_p_*.png
+_edgeprofile/
+node_modules/

@@ -1,0 +1,1163 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>CASIO SL-880 模擬器 · ゲーム電卓 Digital Invaders</title>
+<style>
+  :root{
+    --lcd-bg:#16211a;
+    --lcd-on:#8ff0a4;
+    --lcd-off:rgba(143,240,164,.06);
+    --silver-hi:#eef1f5;
+    --silver:#c3c9d1;
+    --silver-lo:#9aa2ac;
+    --cw:26px;                 /* 單一數位格的寬，LCD 其餘尺寸都由它換算 */
+  }
+  *{box-sizing:border-box}
+  html,body{height:100%}
+  body{
+    margin:0;
+    background:radial-gradient(900px 500px at 25% -10%,#2a3038,#0e1013 65%);
+    color:#e9eef5;
+    font-family:"Segoe UI","Noto Sans TC","Microsoft JhengHei",system-ui,sans-serif;
+    -webkit-font-smoothing:antialiased;
+  }
+  .app{display:flex;gap:26px;justify-content:center;align-items:flex-start;padding:26px 18px 60px;flex-wrap:wrap}
+
+  /* ---------- 機身 ---------- */
+  .device{
+    width:372px;flex:0 0 auto;
+    background:linear-gradient(158deg,var(--silver-hi) 0%,var(--silver) 45%,var(--silver-lo) 100%);
+    border-radius:20px;padding:14px 14px 18px;
+    box-shadow:0 26px 55px rgba(0,0,0,.6),inset 0 1px 0 #fff,inset 0 -2px 6px rgba(0,0,0,.18);
+    position:relative;
+  }
+  .device:after{
+    content:"";position:absolute;inset:6px;border-radius:15px;pointer-events:none;
+    box-shadow:inset 0 0 0 1px rgba(255,255,255,.5);
+  }
+  .toprow{display:flex;justify-content:space-between;align-items:baseline;margin:2px 4px 10px}
+  .brand{font-weight:800;letter-spacing:.18em;font-size:17px;color:#2b3138}
+  .brand small{display:block;font-size:8px;letter-spacing:.22em;font-weight:600;color:#5c646e;margin-top:1px}
+  .model{font-size:9.5px;letter-spacing:.12em;color:#4a525b;text-align:right;font-weight:700}
+  .model em{display:block;font-style:normal;color:#7b838d;font-size:8px;letter-spacing:.08em}
+
+  /* ---------- LCD ---------- */
+  .lcd-frame{
+    background:linear-gradient(180deg,#2b3138,#1a1e23);
+    border-radius:12px;padding:7px;
+    box-shadow:inset 0 2px 5px rgba(0,0,0,.8),0 1px 0 #fff6;
+  }
+  .lcd{
+    display:flex;gap:3px;justify-content:center;
+    background:linear-gradient(180deg,#101a12,#1b271c);
+    border-radius:7px;padding:9px 8px 8px;
+    box-shadow:inset 0 3px 10px rgba(0,0,0,.85);
+    min-height:64px;align-items:center;
+  }
+  .cell{position:relative;width:var(--cw);height:calc(var(--cw) * 1.692);flex:0 0 auto}
+  .seg{position:absolute;background:var(--lcd-off);border-radius:1px}
+  .seg.on{background:var(--lcd-on);box-shadow:0 0 7px rgba(143,240,164,.8)}
+  .seg.a,.seg.d,.seg.g{left:19.2%;width:61.6%;height:9.1%}
+  .seg.a{top:0}.seg.g{top:45.5%}.seg.d{bottom:0}
+  .seg.b,.seg.c,.seg.e,.seg.f{width:15.4%;height:36.4%}
+  .seg.f{left:0;top:9.1%}.seg.b{right:0;top:9.1%}
+  .seg.e{left:0;bottom:9.1%}.seg.c{right:0;bottom:9.1%}
+  .seg.dot{right:0;bottom:0;width:15.4%;height:9.1%;border-radius:50%}
+  .bars{position:absolute;left:15%;right:15%;top:18%;height:64%;display:none;
+    flex-direction:column;justify-content:space-between}
+  .bars i{height:17%;border-radius:999px;background:var(--lcd-off)}
+  .bars i.on{background:var(--lcd-on);box-shadow:0 0 7px rgba(143,240,164,.8)}
+  #lcd:not(.calc) .bars{display:flex}
+  .arrow{position:absolute;left:4%;top:41%;width:92%;height:20%;display:none}
+  .arrow:before{content:"";position:absolute;left:0;top:38%;width:60%;height:26%;
+    background:var(--lcd-on);border-radius:1px}
+  .arrow:after{content:"";position:absolute;left:50%;top:0;
+    border-right:calc(var(--cw) * 0.34) solid var(--lcd-on);
+    border-top:calc(var(--cw) * 0.17) solid transparent;
+    border-bottom:calc(var(--cw) * 0.17) solid transparent}
+  .arrow.on{display:block}
+  #lcd.calc .bars,#lcd.calc .arrow{display:none!important}
+  .sub{
+    margin-top:6px;background:#0d1a10;border-radius:6px;padding:5px 8px;
+    font:600 12px/1.35 ui-monospace,Consolas,monospace;color:#9ef0b4;letter-spacing:.06em;
+    display:flex;justify-content:space-between;gap:8px;min-height:26px;
+    box-shadow:inset 0 1px 4px rgba(0,0,0,.8);white-space:pre;
+  }
+  .sub .dim{color:#5f8f6c}
+
+  .solar{display:flex;align-items:center;gap:8px;margin:9px 4px 10px}
+  .solar .cells{display:flex;gap:2px;background:#39414a;border-radius:3px;padding:2px}
+  .solar .cells i{width:16px;height:9px;background:linear-gradient(160deg,#2b3b4d,#16202b);border-radius:1px}
+  .solar span{font-size:8px;letter-spacing:.1em;color:#5c646e;font-weight:700}
+
+  /* ---------- 按鍵 ---------- */
+  .keys{display:grid;grid-template-columns:repeat(10,1fr);gap:7px}
+  .key{
+    position:relative;border:0;cursor:pointer;user-select:none;grid-column:span 2;
+    height:38px;border-radius:7px;font:700 13px/1 "Segoe UI",system-ui,sans-serif;color:#262b31;
+    background:linear-gradient(180deg,#fbfcfe,#dfe3e9);
+    box-shadow:0 2.5px 0 #8e959e,0 4px 6px rgba(0,0,0,.28),inset 0 1px 0 #fff;
+    transition:transform .04s,box-shadow .04s,filter .1s;
+    display:flex;align-items:center;justify-content:center;
+  }
+  .key:hover{filter:brightness(1.04)}
+  .key:active,.key.press{transform:translateY(2.5px);box-shadow:0 0 0 #8e959e,0 1px 3px rgba(0,0,0,.3),inset 0 1px 0 #fff}
+  .key.fn{background:linear-gradient(180deg,#e7eaef,#c3c9d1);font-size:11.5px}
+  .key.op{background:linear-gradient(180deg,#5a6472,#3c4550);color:#f3f7fb;box-shadow:0 2.5px 0 #232a32,0 4px 6px rgba(0,0,0,.3),inset 0 1px 0 #ffffff30;font-size:15px}
+  .key.ac{background:linear-gradient(180deg,#e07a6d,#c1503f);color:#fff;box-shadow:0 2.5px 0 #7d2f24,0 4px 6px rgba(0,0,0,.3),inset 0 1px 0 #ffffff40}
+  .key.game{background:linear-gradient(180deg,#6fd08a,#2f9c53);color:#08300f;box-shadow:0 2.5px 0 #1c6b36,0 4px 6px rgba(0,0,0,.3),inset 0 1px 0 #ffffff50;letter-spacing:.06em}
+  .key.aim{background:linear-gradient(180deg,#7fb6ff,#3b7fd4);color:#04203f;box-shadow:0 2.5px 0 #23538e,0 4px 6px rgba(0,0,0,.3),inset 0 1px 0 #ffffff50;height:46px;font-size:14px;letter-spacing:.1em;grid-column:span 3}
+  .key.fire{background:linear-gradient(180deg,#ffb46b,#e07a1f);color:#3a1c00;box-shadow:0 2.5px 0 #a1520d,0 4px 6px rgba(0,0,0,.3),inset 0 1px 0 #ffffff50;height:46px;font-size:14px;letter-spacing:.1em;grid-column:span 3}
+  .key.extra{border:1.5px dashed #6d7783}
+  .key .badge{position:absolute;top:-7px;right:-5px;font-size:8px;padding:1px 4px;border-radius:5px;
+    background:#3a2f14;color:#ffce6b;border:1px solid #5c4a1c;letter-spacing:.02em}
+  .key .hint{position:absolute;right:3px;bottom:2px;font-size:7.5px;font-weight:600;color:#7d848d;letter-spacing:0}
+  .key.op .hint,.key.ac .hint,.key.game .hint,.key.aim .hint,.key.fire .hint{color:#ffffff9a}
+
+  /* 旋律模式時，數字鍵上浮現音名 */
+  .keys .key .note{position:absolute;left:3px;bottom:1px;font-size:7.5px;font-weight:700;color:#8a5a00;opacity:0;letter-spacing:0}
+  .keys.music .key .note{opacity:1}
+  .keys.music .key[data-note]:before{content:"";position:absolute;inset:0;border-radius:7px;
+    box-shadow:inset 0 0 0 1.5px #b07a12}
+
+  /* ---------- MG-880 三段模式開關（OFF / ♪ / CAL） ---------- */
+  .switchrow{display:flex;align-items:center;gap:9px;margin:0 4px 9px}
+  .switchrow .swlabel{font-size:8px;font-weight:800;letter-spacing:.1em;color:#5c646e;line-height:1.25}
+  .switchrow .swlabel em{display:block;font-style:normal;font-size:7px;color:#8b939d;letter-spacing:.04em}
+  .slide{position:relative;display:flex;flex:1;background:#39414a;border-radius:7px;padding:2px;
+    box-shadow:inset 0 2px 4px rgba(0,0,0,.5)}
+  .slide .knob{position:absolute;top:2px;left:2px;width:calc((100% - 4px) / 3);height:calc(100% - 4px);
+    border-radius:5px;background:linear-gradient(180deg,#fbfcfe,#c3c9d1);
+    box-shadow:0 1px 2px rgba(0,0,0,.45);transition:transform .16s ease;pointer-events:none}
+  .slide button{position:relative;z-index:1;flex:1;background:none;border:0;cursor:pointer;
+    font:800 10px/1 "Segoe UI",system-ui,sans-serif;color:#cfd6e0;padding:6px 0;letter-spacing:.06em;
+    border-radius:4px}
+  .slide button.on{color:#1e242b}
+
+  /* ---------- 側欄 ---------- */
+  .panel{width:430px;max-width:100%;flex:1 1 380px;display:flex;flex-direction:column;gap:14px}
+  .card{background:#181c22;border:1px solid #262c35;border-radius:14px;padding:14px 16px;box-shadow:0 12px 30px rgba(0,0,0,.35)}
+  .card h2{margin:0 0 8px;font-size:14px;letter-spacing:.06em;color:#9fd8ff}
+  .card h3{margin:12px 0 6px;font-size:12.5px;color:#cfd6e0;letter-spacing:.05em}
+  .card p,.card li{font-size:12.8px;line-height:1.65;color:#c6cedb;margin:4px 0}
+  .card ul{padding-left:18px;margin:4px 0}
+  .score-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-top:4px}
+  .stat{background:#10141a;border:1px solid #242b34;border-radius:9px;padding:7px 9px}
+  .stat b{display:block;font-size:9px;letter-spacing:.14em;color:#7d8797;font-weight:700}
+  .stat span{font:700 16px/1.4 ui-monospace,Consolas,monospace;color:#8ff0a4}
+  .row{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin:6px 0}
+  .row label{font-size:12.5px;color:#c6cedb;display:flex;align-items:center;gap:6px;cursor:pointer}
+  input[type=number]{width:64px;background:#0f1319;border:1px solid #2b323c;color:#e9eef5;border-radius:7px;padding:5px 7px;font:600 13px ui-monospace,monospace}
+  input[type=range]{width:130px}
+  kbd{background:#232a33;border:1px solid #333c48;border-bottom-width:2px;border-radius:5px;padding:1px 5px;font:600 11px ui-monospace,monospace;color:#dbe3ee}
+  table{border-collapse:collapse;width:100%;margin-top:6px;font-size:12px}
+  th,td{border:1px solid #262c35;padding:4px 6px;text-align:center;color:#c6cedb}
+  th{background:#1e242c;color:#9fd8ff;font-weight:700}
+  .tag{display:inline-block;font-size:10px;font-weight:700;padding:1px 6px;border-radius:20px;background:#2b3947;color:#a8cbe8;letter-spacing:.04em}
+  .warn{font-size:11.8px;color:#9aa5b4}
+  a{color:#7fc4ff}
+  .badge{display:inline-block;font-size:10px;padding:1px 7px;border-radius:6px;background:#3a2f14;color:#ffce6b;border:1px solid #5c4a1c;margin-left:6px}
+
+  /* ---------- 手機 / 直式版面 ---------- */
+  @media (max-width: 820px){
+    .app{flex-direction:column;align-items:center;gap:16px;padding:14px 10px 44px}
+    .device{width:min(430px,100%);padding:12px 12px 16px}
+    .panel{width:100%;max-width:640px;flex:0 0 auto;gap:12px}
+    .card{padding:12px 13px}
+    .score-grid{grid-template-columns:repeat(3,1fr)}
+    .lcd{gap:2px;padding:7px 6px;min-height:0}
+    .solar{margin:7px 2px 8px}
+  }
+  @media (max-width: 460px){
+    :root{--cw:min(26px, calc((100vw - 108px) / 10))}
+    .keys{gap:5px}
+    .key{height:40px;border-radius:6px;font-size:12px}
+    .key.fn{font-size:10.5px}
+    .key.aim,.key.fire{height:48px}
+    .key .hint{display:none}
+    .sub{font-size:10.5px;padding:4px 6px}
+    .brand{font-size:15px}
+    .card h2{font-size:13px}
+    .card p,.card li{font-size:12.2px}
+  }
+  /* 觸控裝置：加大按鍵、隱藏鍵盤提示 */
+  @media (pointer: coarse){
+    .key{height:46px}
+    .key.aim,.key.fire{height:54px}
+    .key .hint{display:none}
+    .key{-webkit-tap-highlight-color:transparent;touch-action:manipulation}
+  }
+</style>
+</head>
+<body>
+<div class="app">
+  <!-- ================= 計算機本體 ================= -->
+  <div class="device">
+    <div class="toprow">
+      <div class="brand">CASIO<small>GAME CALCULATOR</small></div>
+      <div class="model">SL-880<em>TWO WAY POWER · 10 DIGITS</em></div>
+    </div>
+
+    <div class="switchrow">
+      <span class="swlabel">MODE<em>MG-880 才有</em></span>
+      <div class="slide" id="modeswitch">
+        <i class="knob" id="knob" style="transform:translateX(200%)"></i>
+        <button data-sw="off">OFF</button>
+        <button data-sw="music">♪</button>
+        <button data-sw="calc" class="on">CAL</button>
+      </div>
+    </div>
+
+    <div class="lcd-frame">
+      <div class="lcd" id="lcd"></div>
+      <div class="sub" id="sub"><span class="dim">READY</span><span class="dim">CALC</span></div>
+    </div>
+
+    <div class="solar">
+      <div class="cells"><i></i><i></i><i></i><i></i><i></i></div>
+      <span>TWO WAY POWER (SOLAR &amp; CR2016)</span>
+    </div>
+
+    <div class="keys" id="keys">
+      <button class="key game"  data-k="game">GAME<span class="hint">G</span></button>
+      <button class="key fn"    data-k="rate">税率</button>
+      <button class="key fn"    data-k="mc">MC</button>
+      <button class="key fn"    data-k="mr">MR<span class="hint">M</span></button>
+      <button class="key fn"    data-k="m-">M−</button>
+
+      <button class="key fn"    data-k="m+">M+</button>
+      <button class="key fn"    data-k="taxin">税込</button>
+      <button class="key fn"    data-k="taxout">税抜</button>
+      <button class="key fn"    data-k="pct">%</button>
+      <button class="key fn"    data-k="sqrt">√</button>
+
+      <button class="key"       data-k="d" data-v="7" data-note="シ">7<span class="note">シ</span></button>
+      <button class="key"       data-k="d" data-v="8" data-note="ド˙">8<span class="note">ド˙</span></button>
+      <button class="key"       data-k="d" data-v="9" data-note="レ˙">9<span class="note">レ˙</span></button>
+      <button class="key op"    data-k="div">÷</button>
+      <button class="key fn"    data-k="c">C</button>
+
+      <button class="key"       data-k="d" data-v="4" data-note="ファ">4<span class="note">ファ</span></button>
+      <button class="key"       data-k="d" data-v="5" data-note="ソ">5<span class="note">ソ</span></button>
+      <button class="key"       data-k="d" data-v="6" data-note="ラ">6<span class="note">ラ</span></button>
+      <button class="key op"    data-k="mul">×</button>
+      <button class="key ac"    data-k="ac">AC<span class="hint">Esc</span></button>
+
+      <button class="key"       data-k="d" data-v="1" data-note="ド">1<span class="note">ド</span></button>
+      <button class="key"       data-k="d" data-v="2" data-note="レ">2<span class="note">レ</span></button>
+      <button class="key"       data-k="d" data-v="3" data-note="ミ">3<span class="note">ミ</span></button>
+      <button class="key op"    data-k="sub">−</button>
+      <button class="key fn"    data-k="on">ON</button>
+
+      <button class="key"       data-k="d" data-v="0" data-note="ミ˙">0<span class="note">ミ˙</span></button>
+      <button class="key"       data-k="dot">.</button>
+      <button class="key fn"    data-k="sign">♯ +/−</button>
+      <button class="key op"    data-k="add">+</button>
+      <button class="key op"    data-k="eq">=</button>
+
+      <button class="key fn"    data-k="bs">►</button>
+      <button class="key extra fn" data-k="melody">♪<span class="badge">EXTRA</span></button>
+      <button class="key aim"   data-k="aim">AIM<span class="hint">Z / ←</span></button>
+      <button class="key fire"  data-k="fire">FIRE<span class="hint">X / ␣</span></button>
+    </div>
+  </div>
+
+  <!-- ================= 說明 / 控制 ================= -->
+  <div class="panel">
+    <div class="card">
+      <h2>CASIO SL-880「ゲーム電卓」模擬器</h2>
+      <p>把 1980 年 MG-880 的 <b>デジタルインベーダー</b> 復刻機 SL-880，做成一個離線可跑的單檔 HTML：右邊來的數字侵略者要跟左端砲台數字配對擊落，同一支程式裡也能當 10 位數電卓用（含稅計算、記憶、√、%）。</p>
+      <div class="score-grid">
+        <div class="stat"><b>SCORE</b><span id="s-score">0</span></div>
+        <div class="stat"><b>HIGH SCORE</b><span id="s-high">0</span></div>
+        <div class="stat"><b>ROUND</b><span id="s-round">−</span></div>
+        <div class="stat"><b>LIVES 砲台</b><span id="s-lives">3</span></div>
+        <div class="stat"><b>MISSILE 殘彈</b><span id="s-beam">30</span></div>
+        <div class="stat"><b>PART</b><span id="s-part">−</span></div>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>怎麼玩</h2>
+      <ul>
+        <li>按 <b>GAME</b>：先顯示最高分 → 顯示本局條件（16 個侵略者 / 30 發飛彈）→ 開打。</li>
+        <li><b>AIM</b> 切換砲台數字，順序是 <code>0→1→…→9→n→0</code>（<code>n</code> 就是 UFO）。</li>
+        <li><b>FIRE</b> 發射。命中砲台同數字的侵略者就擊落；<b>沒中也照樣扣一發飛彈</b>。</li>
+        <li>得分看<b>擊落位置</b>：越靠右分越高（見下表）。<b>UFO(n) 命中 +300</b>。</li>
+        <li>侵略者碰到砲台 → 掉一顆砲台（共 3 顆）。砲台用光、或<b>飛彈打完還沒清光 16 個</b> → GAME OVER。</li>
+        <li>UFO 出現規則：本回合累積擊落數字和為 <b>10 的倍數</b>時，<b>下一個</b>出現的侵略者變成 UFO。</li>
+        <li>清完 16 個進下一回合，速度變快；第 9 回合清完進 <b>Part 2</b>（從右邊第 2 格就出現、分數加倍）。</li>
+      </ul>
+      <table>
+        <tr><th>位置（砲台往外）</th><th>1</th><th>2</th><th>3</th><th>4</th><th>5</th><th>6</th></tr>
+        <tr><th>Part 1</th><td>10</td><td>20</td><td>30</td><td>40</td><td>50</td><td>60</td></tr>
+        <tr><th>Part 2</th><td>20</td><td>40</td><td>60</td><td>80</td><td>100</td><td>—</td></tr>
+      </table>
+      <h3>鍵盤</h3>
+      <p><kbd>G</kbd> GAME · <kbd>Z</kbd>/<kbd>←</kbd> AIM · <kbd>X</kbd>/<kbd>Space</kbd> FIRE · <kbd>0-9</kbd> <kbd>. + - * /</kbd> <kbd>Enter</kbd>= <kbd>Backspace</kbd> ► <kbd>Esc</kbd> AC <kbd>C</kbd> C <kbd>M</kbd> MR</p>
+    </div>
+
+    <div class="card">
+      <h2>設定</h2>
+      <div class="row">
+        <label><input type="checkbox" id="opt-sound" checked> 音效（壓電蜂鳴器風）</label>
+      </div>
+      <div class="row">
+        <label><input type="checkbox" id="opt-gamekey"> ♪ 模式下 GAME 鍵改為演奏內建曲<span class="badge">MG-880 實機行為</span></label>
+      </div>
+      <p class="warn">預設：<b>♪ 模式下按 GAME 會直接切回 CAL 並開遊戲</b>（免得卡在音樂模式）。勾選上面那項就還原成實機行為（GAME = 演奏《聖者的行進》）；不管在哪個模式，<b>隨時按 <code>♪</code> 鍵都能聽內建曲</b>。</p>
+      <div class="row">
+        <label>遊戲速度 <input type="range" id="opt-speed" min="0.5" max="1.6" step="0.1" value="1"> <span id="speed-label" class="warn">1.0×（1.0× ≈ 實機）</span></label>
+      </div>
+      <div class="row">
+        <label>稅率 <input type="number" id="opt-tax" min="0" max="99" step="0.1" value="10"> %</label>
+        <span class="warn">（税込／税抜 計算用）</span>
+      </div>
+      <h3>MG-880 旋律模式<span class="badge">加碼</span></h3>
+      <p>把機身上方的 <b>MODE</b> 滑動開關撥到 <b>♪</b>（或用 <code>♪</code> 鍵跳過去）：</p>
+      <ul>
+        <li><b>1 2 3 4 5 6 7</b> = ド レ ミ ファ ソ ラ シ；<b>8 9 0</b> = 高一度的 ド レ ミ，鍵面會浮現音名。</li>
+        <li><b>♯ +/−</b> 切換升半音，<b>►</b> 取消升半音。</li>
+        <li><b>♪</b> 鍵 = 演奏內建曲《聖者的行進》。</li>
+        <li><b>GAME</b> 鍵 = 直接切回 CAL 並開始遊戲（實機在此是演奏內建曲，可在上方設定切換）。</li>
+        <li>開關撥到 <b>OFF</b> 就等同關機（LCD 全暗）；<b>CAL</b> 回到電卓＋遊戲。</li>
+      </ul>
+      <p class="warn">旋律模式是 <b>MG-880 才有</b>、復刻的 SL-880 被砍掉的功能，這裡當彩蛋還原；<code>♪</code> 鍵（虛線框）也不是 SL-880 實機的按鍵。</p>
+    </div>
+
+    <div class="card">
+      <h2>實作說明與已知差異</h2>
+      <ul>
+        <li><b>遊戲規則</b>依 SL-880 官方型錄與 1981 年原型機的公開資料實作：16 體 / 30 發 / 3 命、UFO 為「下一位」、Part 2 從右二格出現且分數加倍、清完 Part 2 第 9 關回到 Part 1 第 1 關。</li>
+        <li><b>命中判定</b>：同一數字若場上有多個，會先打掉<b>最靠近砲台</b>那一個（防守優先）。這是模擬器的判定，實機細節我沒有原廠說明書可逐條核對。</li>
+        <li><b>畫面欄位</b>：10 格 LCD 我對應成「砲台 1 格 + 生命 3 橫線 1 格 + 方向箭頭 1 格 + 侵略者 6 格」，右側留白，與型錄照片 <code>0E←76n51</code> 的排列一致；實際字型/段數為近似重繪。LCD 尺寸是比例式的，視窗變窄或手機直式都會跟著縮。</li>
+        <li><b>旋律模式</b>：MG-880 的開關確實是「OFF / 音楽モード / 電卓＆ゲームモード」三段，音樂模式下按 GAME 會播《聖者が街にやってくる》；<b>但數字鍵的實際音階對應沒有原廠手冊可查</b>，此處的ドレミ配置與 ♯ 修飾是我補的近似。</li>
+        <li><b>副顯示列</b>（LCD 下方那條）是本模擬器加的 HUD，實機只有在遊戲前後與回合結束才顯示分數。</li>
+        <li><b>速度</b>依 MG-880 移植 App 量測值反推：第 1 關約 7 秒、第 9 關約 2.3 秒橫越畫面。</li>
+        <li><b>音效</b>用 WebAudio 方波近似，非實機取樣。手機請先點一下畫面讓瀏覽器解鎖音訊。</li>
+      </ul>
+      <p class="warn">參考來源：
+        <a href="https://www.casio.com/jp/basic-calculators/product.SL-880/" target="_blank" rel="noreferrer">Casio SL-880 官方頁</a> ·
+        <a href="https://www.casio.com/content/dam/casio/local/jp/basic-calculators/catalog/SL-880_leaf.pdf" target="_blank" rel="noreferrer">官方型錄 PDF</a> ·
+        <a href="http://www.lsigame.com/lsigame/dentaku/dentaku.htm" target="_blank" rel="noreferrer">デジタルインベーダー 規則解說</a> ·
+        <a href="https://kakakumag.com/houseware/?id=11983" target="_blank" rel="noreferrer">価格.com 實機評測</a>
+      </p>
+    </div>
+  </div>
+</div>
+
+<script>
+(function(){
+"use strict";
+
+/* =========================================================
+   1. 7 段顯示器
+   ========================================================= */
+var GLYPH = {
+  "0":"abcdef","1":"bc","2":"abdeg","3":"abcdg","4":"bcfg","5":"acdfg","6":"acdefg",
+  "7":"abc","8":"abcdefg","9":"abcdfg","-":"g","E":"adefg","n":"ceg"," ":""
+};
+var SEGS = "abcdefg".split("");
+
+var lcdEl  = document.getElementById("lcd");
+var subEl  = document.getElementById("sub");
+var cells  = [];
+
+function makeCell(i){
+  var el = document.createElement("div");
+  el.className = "cell";
+  var segs = {};
+  SEGS.forEach(function(s){
+    var e = document.createElement("i");
+    e.className = "seg " + s;
+    el.appendChild(e);
+    segs[s] = e;
+  });
+  var dot = document.createElement("i");
+  dot.className = "seg dot";
+  el.appendChild(dot);
+
+  var bars = null, arrow = null;
+  if (i === 1){                                  // 生命 3 橫線
+    bars = document.createElement("div");
+    bars.className = "bars";
+    for (var k=0;k<3;k++){ bars.appendChild(document.createElement("i")); }
+    el.appendChild(bars);
+  }
+  if (i === 2){                                  // 方向箭頭
+    arrow = document.createElement("i");
+    arrow.className = "arrow";
+    el.appendChild(arrow);
+  }
+  lcdEl.appendChild(el);
+
+  cells.push({
+    el: el, segs: segs, dot: dot, bars: bars, arrow: arrow,
+    set: function(ch){
+      var pat = GLYPH[ch] || "";
+      SEGS.forEach(function(s){ segs[s].classList.toggle("on", pat.indexOf(s) >= 0); });
+    },
+    setDot: function(v){ dot.classList.toggle("on", !!v); },
+    setBars: function(n){
+      if (!bars) return;
+      var items = bars.children;
+      for (var k=0;k<3;k++){ items[k].classList.toggle("on", k < n); }
+    },
+    setArrow: function(v){ if (arrow) arrow.classList.toggle("on", !!v); },
+    clear: function(){ this.set(" "); this.setDot(false); this.setBars(0); this.setArrow(false); }
+  });
+}
+for (var ci=0; ci<10; ci++) makeCell(ci);
+
+function clearLcd(){ cells.forEach(function(c){ c.clear(); }); }
+
+/** 把字串 token 由左往右畫在指定的起始格 */
+function drawTokens(tokens, start){
+  var i = start;
+  tokens.forEach(function(t){
+    if (i < 0 || i > 9) { i++; return; }
+    cells[i].set(t.ch);
+    cells[i].setDot(!!t.dot);
+    i++;
+  });
+}
+/** 把數字字串（可含 - 與 .）轉為 token 並靠右對齊 */
+function drawNumber(str, alignLeftAt){
+  clearLcd();
+  var neg = false;
+  if (str.charAt(0) === "-"){ neg = true; str = str.slice(1); }
+  var dotIdx = str.indexOf(".");
+  var ip = dotIdx >= 0 ? str.slice(0, dotIdx) : str;
+  var fp = dotIdx >= 0 ? str.slice(dotIdx + 1) : "";
+  if (ip === "") ip = "0";
+
+  var tokens = [];
+  for (var i=0;i<ip.length;i++){
+    var remain = ip.length - 1 - i;
+    tokens.push({ ch: ip.charAt(i), dot: (remain > 0 && remain % 3 === 0) });
+  }
+  if (dotIdx >= 0){
+    tokens[tokens.length - 1].dot = true;
+    for (var j=0;j<fp.length;j++) tokens.push({ ch: fp.charAt(j), dot: false });
+  }
+  if (tokens.length > 10){ drawTokens([{ch:"E",dot:false}], 9); return; }
+
+  var start = (typeof alignLeftAt === "number") ? alignLeftAt : 10 - tokens.length;
+  if (neg){
+    if (start - 1 < 0){ drawTokens([{ch:"E",dot:false}], 9); return; }
+    cells[start-1].set("-");
+  }
+  drawTokens(tokens, start);
+}
+
+/* =========================================================
+   2. 音效（WebAudio）
+   ========================================================= */
+var AC = null;
+function audio(){
+  if (!AC){
+    var Ctx = window.AudioContext || window.webkitAudioContext;
+    if (Ctx) AC = new Ctx();
+  }
+  if (AC && AC.state === "suspended") AC.resume();
+  return AC;
+}
+function tone(freq, ms, type, vol, delay){
+  if (!state.sound) return;
+  var ac = audio(); if (!ac) return;
+  var t0 = ac.currentTime + (delay || 0) / 1000;
+  var osc = ac.createOscillator(), g = ac.createGain();
+  osc.type = type || "square";
+  osc.frequency.setValueAtTime(freq, t0);
+  g.gain.setValueAtTime(0.0001, t0);
+  g.gain.exponentialRampToValueAtTime(vol == null ? 0.07 : vol, t0 + 0.008);
+  g.gain.exponentialRampToValueAtTime(0.0001, t0 + ms / 1000);
+  osc.connect(g); g.connect(ac.destination);
+  osc.start(t0); osc.stop(t0 + ms / 1000 + 0.02);
+}
+function sweep(f1, f2, ms, vol){
+  if (!state.sound) return;
+  var ac = audio(); if (!ac) return;
+  var t0 = ac.currentTime;
+  var osc = ac.createOscillator(), g = ac.createGain();
+  osc.type = "square";
+  osc.frequency.setValueAtTime(f1, t0);
+  osc.frequency.linearRampToValueAtTime(f2, t0 + ms/1000);
+  g.gain.setValueAtTime(vol == null ? 0.08 : vol, t0);
+  g.gain.exponentialRampToValueAtTime(0.0001, t0 + ms/1000);
+  osc.connect(g); g.connect(ac.destination);
+  osc.start(t0); osc.stop(t0 + ms/1000 + 0.02);
+}
+var SFX = {
+  click:  function(){ tone(1400, 12, "square", 0.035); },
+  hit:    function(){ tone(1900, 28, "square", 0.075); tone(2600, 22, "square", 0.05, 30); },
+  miss:   function(){ tone(150, 70, "square", 0.06); },
+  invade: function(){ sweep(420, 120, 220, 0.09); },
+  ufo:    function(){ tone(2200, 40, "square", 0.08); tone(1600, 40, "square", 0.08, 45); },
+  clear:  function(){ [784, 988, 1175, 1568].forEach(function(f,i){ tone(f, 90, "square", 0.07, i*95); }); },
+  over:   function(){ [440, 392, 330, 262].forEach(function(f,i){ tone(f, 170, "square", 0.08, i*170); }); },
+  boot:   function(){ tone(1046, 40, "square", 0.06); }
+};
+
+/* =========================================================
+   3. 全域狀態
+   ========================================================= */
+var state = {
+  mode: "calc",        // calc | game
+  switchMode: "calc",  // off | music | calc（MG-880 三段滑動開關）
+  power: true,
+  sound: true,
+  gameKeyTunes: false  // ♪ 模式下 GAME 鍵：false = 切回 CAL 開遊戲（預設）、true = 演奏內建曲（實機行為）
+};
+
+var calc = {
+  entry: "0",          // 目前顯示的字串（可含 - 與 .）
+  acc: null,
+  op: null,
+  lastOp: null,        // 四則定數計算
+  lastOperand: null,
+  fresh: true,         // 下一顆數字鍵開新輸入
+  error: false,
+  memory: 0,
+  taxRate: 10,
+  taxMode: null        // 連續税込/税抜 用
+};
+
+var G = {
+  phase: "idle",       // idle|high|cond|play|result|over
+  part: 1,
+  round: 1,
+  score: 0,
+  roundScore: 0,
+  high: 0,
+  lives: 3,
+  beams: 30,
+  aim: 0,
+  aimUfo: false,
+  field: [null,null,null,null,null,null],   // 第 0 格最靠近砲台
+  spawned: 0,
+  killed: 0,
+  sum: 0,
+  nextUfo: false,
+  spawnT: 0,
+  stepT: 0,
+  phaseT: 0,
+  blinkT: 0
+};
+
+var TOTAL_INVADERS = 16;
+var MAX_MISSILES   = 30;
+var SCORES = { 1:[10,20,30,40,50,60], 2:[20,40,60,80,100,null] };
+var SPEED = 1;
+
+function spawnSlot(){ return G.part === 1 ? 5 : 4; }
+function stepMs(){
+  var base = 1050 - (G.round - 1) * (700 / 8);   // 第1關 1050ms → 第9關 350ms
+  if (G.part === 2) base *= 0.9;
+  return base / SPEED;
+}
+function spawnMs(){
+  return Math.max(600, stepMs() * 1.5);
+}
+
+/* =========================================================
+   4. 電卓邏輯
+   ========================================================= */
+/** 把數值塞進 10 個數位格（含小數點前那個 0），塞不下就回傳 null → 顯示 E */
+function numToEntry(n){
+  if (!isFinite(n)) return null;
+  var neg = n < 0, a = Math.abs(n);
+  if (a !== 0 && a >= 1e10) return null;          // 溢位
+  var intLen = (a < 1) ? 1 : (Math.floor(Math.log10(a)) + 1);
+  if (intLen > 10) return null;
+  var maxFrac = Math.max(0, 10 - intLen);
+  var s = a.toFixed(Math.min(maxFrac, 10));
+  if (s.indexOf(".") >= 0) s = s.replace(/0+$/, "").replace(/\.$/, "");
+  if (s === "" ) s = "0";
+  if (s.replace(".", "").length > 10) return null; // 進位後爆格（例如 9999999999.9）
+  return ((neg && parseFloat(s) !== 0) ? "-" : "") + s;
+}
+function entryValue(){
+  var v = parseFloat(calc.entry);
+  return isNaN(v) ? 0 : v;
+}
+function pushEntry(v){
+  var s = numToEntry(v);
+  if (s === null){ calc.error = true; return false; }
+  calc.entry = s;
+  return true;
+}
+function digitCount(){
+  var s = calc.entry.replace("-", "");
+  if (s.charAt(0) === "0" && s.indexOf(".") >= 0) s = s.slice(1);  // 0.xxx 的前導 0 不佔位
+  return s.replace(".", "").length;
+}
+function c_digit(d){
+  if (calc.error) return;
+  if (calc.fresh){ calc.entry = "0"; calc.fresh = false; }
+  if (calc.entry === "0" && d !== "." ) calc.entry = d;
+  else if (calc.entry === "-0" && d !== ".") calc.entry = "-" + d;
+  else {
+    if (digitCount() >= 10) return;
+    calc.entry += d;
+  }
+  calc.taxMode = null;
+}
+function c_dot(){
+  if (calc.error) return;
+  if (calc.fresh){ calc.entry = "0."; calc.fresh = false; return; }
+  if (calc.entry.indexOf(".") < 0) calc.entry += ".";
+}
+function c_sign(){
+  if (calc.error) return;
+  if (calc.entry.charAt(0) === "-") calc.entry = calc.entry.slice(1);
+  else if (calc.entry !== "0") calc.entry = "-" + calc.entry;
+}
+function c_bs(){
+  if (calc.error) return;
+  if (calc.entry.length <= 1 || (calc.entry.length === 2 && calc.entry.charAt(0) === "-")) calc.entry = "0";
+  else calc.entry = calc.entry.slice(0, -1);
+}
+function apply(op, a, b){
+  switch (op){
+    case "add": return a + b;
+    case "sub": return a - b;
+    case "mul": return a * b;
+    case "div": return b === 0 ? null : a / b;
+  }
+  return b;
+}
+function c_op(op){
+  if (calc.error) return;
+  var v = entryValue();
+  if (calc.op !== null && !calc.fresh){
+    var r = apply(calc.op, calc.acc, v);
+    if (r === null){ calc.error = true; return; }
+    if (!pushEntry(r)) return;
+    calc.acc = entryValue();
+  } else {
+    calc.acc = v;
+  }
+  calc.op = op;
+  calc.lastOp = null;
+  calc.fresh = true;
+  calc.taxMode = null;
+}
+function c_eq(){
+  if (calc.error) return;
+  var v = entryValue();
+  if (calc.op !== null){
+    if (calc.fresh){                 // 「5 + =」 → 5+5
+      var r0 = apply(calc.op, calc.acc, calc.acc);
+      if (r0 === null){ calc.error = true; return; }
+      pushEntry(r0);
+      calc.lastOp = calc.op; calc.lastOperand = calc.acc;
+    } else {
+      var r = apply(calc.op, calc.acc, v);
+      if (r === null){ calc.error = true; return; }
+      pushEntry(r);
+      calc.lastOp = calc.op; calc.lastOperand = v;
+    }
+    calc.acc = entryValue();
+    calc.op = null;
+    calc.fresh = true;
+  } else if (calc.lastOp !== null){  // 連按 = → 定數計算
+    var r2 = apply(calc.lastOp, entryValue(), calc.lastOperand);
+    if (r2 === null){ calc.error = true; return; }
+    pushEntry(r2);
+    calc.fresh = true;
+  }
+  calc.taxMode = null;
+}
+function c_pct(){
+  if (calc.error) return;
+  var v = entryValue();
+  if (calc.op === "add" || calc.op === "sub"){
+    var p = calc.acc * v / 100;
+    var r = apply(calc.op, calc.acc, p);
+    pushEntry(r); calc.acc = entryValue(); calc.op = null; calc.fresh = true;
+  } else if (calc.op === "mul" || calc.op === "div"){
+    var r2 = apply(calc.op, calc.acc, v / 100);
+    pushEntry(r2); calc.acc = entryValue(); calc.op = null; calc.fresh = true;
+  } else {
+    pushEntry(v / 100); calc.fresh = true;
+  }
+}
+function c_sqrt(){
+  if (calc.error) return;
+  var v = entryValue();
+  if (v < 0){ calc.error = true; return; }
+  pushEntry(Math.sqrt(v));
+  calc.fresh = true;
+}
+function c_tax(kind){
+  if (calc.error) return;
+  var r = calc.taxRate / 100;
+  var v = entryValue();
+  if (kind === "taxin")  pushEntry(v * (1 + r));
+  else                   pushEntry(v / (1 + r));
+  calc.fresh = true;
+}
+function c_mem(kind){
+  if (calc.error) { if (kind === "mc") calc.memory = 0; return; }
+  if (kind === "m+" || kind === "m-"){ tone(1500, 12, "square", 0.03); }
+  if (kind === "m+") calc.memory += entryValue();
+  if (kind === "m-") calc.memory -= entryValue();
+  if (kind === "mr"){ pushEntry(calc.memory); calc.fresh = true; }
+  if (kind === "mc") calc.memory = 0;
+}
+function c_clear(all){
+  if (all){ calc.acc = null; calc.op = null; calc.lastOp = null; calc.fresh = true; }
+  calc.entry = "0"; calc.error = false; calc.taxMode = null;
+  if (all) calc.fresh = true;
+}
+
+/* =========================================================
+   5. 遊戲邏輯
+   ========================================================= */
+function loadHigh(){
+  try{
+    var v = window.localStorage.getItem("sl880.high");
+    if (v) G.high = parseInt(v, 10) || 0;
+  }catch(e){}
+}
+function saveHigh(){
+  try{ window.localStorage.setItem("sl880.high", String(G.high)); }catch(e){}
+}
+function gameStart(){
+  if (!state.power){ state.power = true; }
+  state.mode = "game";
+  G.phase = "high";
+  G.phaseT = 1500;
+  G.score = 0;
+  G.part = 1;
+  G.round = 1;
+  tone(880, 60, "square", 0.05);
+}
+function startCond(){
+  G.phase = "cond";
+  G.phaseT = 1600;
+  tone(660, 50, "square", 0.05);
+}
+function startRound(){
+  G.phase = "play";
+  G.lives = 3;
+  G.beams = MAX_MISSILES;
+  G.field = [null,null,null,null,null,null];
+  G.spawned = 0;
+  G.killed = 0;
+  G.sum = 0;
+  G.nextUfo = false;
+  G.aim = 0;
+  G.aimUfo = false;
+  G.spawnT = 300 / SPEED;
+  G.stepT = stepMs();
+  G.roundScore = 0;
+  tone(1200, 45, "square", 0.05);
+}
+function endRound(){
+  G.phase = "result";
+  G.phaseT = 2000;
+  SFX.clear();
+}
+function nextRound(){
+  if (G.part === 1 && G.round >= 9){
+    G.part = 2; G.round = 1;
+  } else if (G.part === 2 && G.round >= 9){
+    G.part = 1; G.round = 1;
+  } else {
+    G.round++;
+  }
+  startRound();
+}
+function gameOver(){
+  G.phase = "over";
+  G.phaseT = 0;
+  G.blinkT = 0;
+  if (G.score > G.high){ G.high = G.score; saveHigh(); }
+  SFX.over();
+}
+function fireMissile(){
+  if (G.phase !== "play" || G.beams <= 0) return;
+  G.beams--;
+  var want = G.aimUfo ? "n" : String(G.aim);
+  var slot = -1;
+  for (var i=0;i<6;i++){
+    if (G.field[i] && G.field[i].ch === want){ slot = i; break; }   // 最靠近砲台者優先
+  }
+  if (slot < 0){
+    SFX.miss();
+  } else {
+    var inv = G.field[slot];
+    G.field[slot] = null;
+    var pts = SCORES[G.part][slot] || 0;
+    G.score += pts; G.roundScore += pts;
+    if (inv.ch === "n"){
+      G.score += 300; G.roundScore += 300;
+      SFX.ufo();
+    } else {
+      G.sum += parseInt(inv.ch, 10);
+      SFX.hit();
+      // 本回合累積擊落和為 10 的倍數 → 下一個出現的侵略者變 UFO
+      if (G.killed + 1 < TOTAL_INVADERS && G.sum > 0 && G.sum % 10 === 0) G.nextUfo = true;
+    }
+    G.killed++;
+  }
+  if (G.killed >= TOTAL_INVADERS){ endRound(); return; }
+  if (G.beams <= 0) gameOver();
+}
+function cycleAim(){
+  if (G.aimUfo){ G.aimUfo = false; G.aim = 0; }
+  else if (G.aim >= 9){ G.aimUfo = true; }
+  else G.aim++;
+  tone(1000, 10, "square", 0.03);
+}
+
+function gameTick(dt){
+  switch (G.phase){
+    case "high":
+      G.phaseT -= dt;
+      if (G.phaseT <= 0) startCond();
+      break;
+    case "cond":
+      G.phaseT -= dt;
+      if (G.phaseT <= 0) startRound();
+      break;
+    case "result":
+      G.phaseT -= dt;
+      if (G.phaseT <= 0) nextRound();
+      break;
+    case "play":
+      G.spawnT -= dt;
+      G.stepT  -= dt;
+      if (G.spawnT <= 0){
+        G.spawnT = spawnMs();
+        var sl = spawnSlot();
+        if (G.spawned < TOTAL_INVADERS && !G.field[sl]){
+          G.field[sl] = { ch: G.nextUfo ? "n" : String(Math.floor(Math.random()*10)) };
+          G.nextUfo = false;
+          G.spawned++;
+          tone(1500, 12, "square", 0.025);
+        }
+      }
+      if (G.stepT <= 0){
+        G.stepT = stepMs();
+        // 最靠近砲台的那一隻攻進來：掉一顆砲台，該侵略者也算處理掉了
+        if (G.field[0]){
+          G.field[0] = null;
+          G.lives--;
+          G.killed++;              // 讓回合能正常結束（否則被突破的回合會卡住）
+          SFX.invade();
+          if (G.lives <= 0){ render(); gameOver(); return; }
+        }
+        // 全體左移一格
+        for (var j=1;j<6;j++){ G.field[j-1] = G.field[j]; G.field[j] = null; }
+        if (G.killed >= TOTAL_INVADERS){ endRound(); }
+      }
+      break;
+    case "over":
+      G.blinkT += dt;
+      break;
+  }
+}
+
+/* =========================================================
+   6. 繪製
+   ========================================================= */
+var el = {
+  score: document.getElementById("s-score"),
+  high:  document.getElementById("s-high"),
+  round: document.getElementById("s-round"),
+  lives: document.getElementById("s-lives"),
+  beam:  document.getElementById("s-beam"),
+  part:  document.getElementById("s-part")
+};
+
+function pad2(n){ return (n < 10 ? "0" : "") + n; }
+
+function render(){
+  if (!state.power){
+    clearLcd();
+    subEl.innerHTML = '<span class="dim">— OFF —</span><span class="dim">MODE OFF</span>';
+    return;
+  }
+  if (state.switchMode === "music"){
+    lcdEl.classList.add("calc");
+    clearLcd();
+    if (music.degree) cells[9].set(music.degree);
+    if (music.sharp) cells[9].setDot(true);
+    subEl.innerHTML = '<span>MUSIC MODE · ' +
+      (music.playing ? "♪ 聖者の行進" : (state.gameKeyTunes ? "♪ = 演奏 / GAME = 演奏" : "♪ = 演奏 / GAME = 開遊戲")) +
+      '</span><span class="dim">♯ ' + (music.sharp ? "ON" : "OFF") + '</span>';
+    updateHud();
+    return;
+  }
+  if (state.mode === "calc"){
+    lcdEl.classList.add("calc");
+    clearLcd();
+    if (calc.error) drawTokens([{ch:"E",dot:false}], 9);
+    else drawNumber(calc.entry);
+    var r = calc.taxRate;
+    subEl.innerHTML = '<span>M ' + (calc.memory < 0 ? "-" : "") + Math.abs(calc.memory) +
+      '  TAX ' + r + '%' + (calc.op ? '  OP ' + ({add:"+",sub:"-",mul:"×",div:"÷"}[calc.op]) : "") +
+      '</span><span class="dim">CALC</span>';
+    updateHud();
+    return;
+  }
+
+  lcdEl.classList.remove("calc");
+  clearLcd();
+  var phaseName = "";
+  if (G.phase === "high"){
+    drawNumber(String(G.high));
+    phaseName = "HIGH SCORE";
+  } else if (G.phase === "cond"){
+    drawTokens([{ch:"1",dot:false},{ch:"6",dot:false}], 0);
+    drawTokens([{ch:"3",dot:false},{ch:"0",dot:false}], 5);
+    phaseName = "INVADERS 16 / MISSILE 30";
+  } else if (G.phase === "play"){
+    cells[0].set(G.aimUfo ? "n" : String(G.aim));
+    cells[1].setBars(G.lives);
+    cells[2].setArrow(true);
+    for (var i=0;i<6;i++){
+      if (G.field[i]) cells[3+i].set(G.field[i].ch);
+    }
+    phaseName = "P" + G.part + " R" + G.round + " SCORE " + G.score;
+  } else if (G.phase === "result"){
+    drawNumber(String(G.score));
+    phaseName = "ROUND " + G.round + " CLEAR +" + G.roundScore;
+  } else if (G.phase === "over"){
+    var on = Math.floor(G.blinkT / 380) % 2 === 0;
+    if (on) drawNumber(String(G.score));
+    phaseName = "GAME OVER  P" + G.part + " R" + G.round + " SCORE " + G.score;
+  }
+  subEl.innerHTML = '<span>' + phaseName + '</span><span class="dim">' +
+    (G.phase === "play" ? ("BEAM " + pad2(G.beams)) : ("HIGH " + G.high)) + '</span>';
+  updateHud();
+}
+function updateHud(){
+  el.score.textContent = G.score;
+  el.high.textContent  = G.high;
+  el.round.textContent = (state.mode === "game" && G.phase !== "idle") ? (G.part + "-" + G.round) : "−";
+  el.lives.textContent = (state.mode === "game" && G.phase === "play") ? G.lives : "−";
+  el.beam.textContent  = (state.mode === "game" && G.phase === "play") ? G.beams : "−";
+  el.part.textContent  = (state.mode === "game" && G.phase !== "idle") ? ("P" + G.part) : "−";
+}
+
+/* =========================================================
+   7. 主迴圈
+   ========================================================= */
+var lastT = 0;
+function loop(t){
+  var dt = lastT ? Math.min(60, t - lastT) : 16;
+  lastT = t;
+  if (state.power && state.mode === "game") gameTick(dt);
+  render();
+  requestAnimationFrame(loop);
+}
+
+/* =========================================================
+   8. MG-880 旋律模式（復刻版 SL-880 沒有的加碼還原）
+   ========================================================= */
+var NOTE_SEMI = { C:0, D:2, E:4, F:5, G:7, A:9, B:11 };
+function noteFreq(name){
+  var m = /^([A-G])(#?)(-?\d)$/.exec(name);
+  if (!m) return 440;
+  var midi = (parseInt(m[3], 10) + 1) * 12 + NOTE_SEMI[m[1]] + (m[2] ? 1 : 0);
+  return 440 * Math.pow(2, (midi - 69) / 12);
+}
+/* 數字鍵 → 音階。實機鍵位對應查無原廠手冊，此為還原用的近似配置 */
+var KEY_NOTE   = { "1":"C4","2":"D4","3":"E4","4":"F4","5":"G4","6":"A4","7":"B4",
+                   "8":"C5","9":"D5","0":"E5" };
+var NOTE_DEGREE = { "C4":"1","D4":"2","E4":"3","F4":"4","G4":"5","A4":"6","B4":"7",
+                    "C5":"1","D5":"2","E5":"3" };
+/* GAME 鍵在音樂模式下演奏的內建曲：聖者の行進 */
+var TUNE_SAINTS = [
+  ["C4",1],["E4",1],["F4",1],["G4",3],
+  ["C4",1],["E4",1],["F4",1],["G4",3],
+  ["C4",1],["E4",1],["F4",1],["G4",1],["E4",1],["C4",1],["E4",1],["D4",3],
+  ["E4",1],["F4",1],["G4",1],["E4",1],["C4",1],["E4",1],["D4",1],["C4",4]
+];
+var music = { sharp:false, timers:[], playing:false, degree:null, beat:250 };
+
+function stopTune(){
+  music.timers.forEach(clearTimeout);
+  music.timers = [];
+  music.playing = false;
+  music.degree = null;
+}
+function playNoteName(name, ms){
+  var f = noteFreq(name) * (music.sharp ? Math.pow(2, 1/12) : 1);
+  tone(f, ms || 200, "square", 0.08);
+  music.degree = NOTE_DEGREE[name] || null;
+}
+function playKeyNote(digit){
+  var n = KEY_NOTE[digit];
+  if (!n) return;
+  playNoteName(n, 220);
+}
+function playTune(){
+  stopTune();
+  music.playing = true;
+  var t = 0;
+  TUNE_SAINTS.forEach(function(p){
+    var name = p[0], ms = p[1] * music.beat, at = t;
+    music.timers.push(setTimeout(function(){
+      playNoteName(name, Math.min(ms * 0.85, 460));
+      music.degree = NOTE_DEGREE[name] || null;
+    }, at));
+    t += ms;
+  });
+  music.timers.push(setTimeout(function(){ music.playing = false; music.degree = null; }, t + 80));
+}
+
+/* 三段滑動開關：OFF / ♪ MUSIC / CAL */
+function setSwitch(which){
+  state.switchMode = which;
+  state.power = (which !== "off");
+  state.mode = "calc";
+  var idx = which === "off" ? 0 : (which === "music" ? 1 : 2);
+  document.getElementById("knob").style.transform = "translateX(" + (idx * 100) + "%)";
+  var sw = document.getElementById("modeswitch").children;
+  for (var i=0;i<sw.length;i++){
+    if (sw[i].dataset && sw[i].dataset.sw) sw[i].classList.toggle("on", sw[i].dataset.sw === which);
+  }
+  document.getElementById("keys").classList.toggle("music", which === "music");
+  if (which !== "music") stopTune();
+  if (which === "music"){ SFX.boot(); }
+  if (which === "calc"){ tone(1046, 40, "square", 0.06); }
+}
+
+/* =========================================================
+   9. 輸入（按鍵 + 鍵盤）
+   ========================================================= */
+function action(k, v){
+  if (k === "on"){
+    if (!state.power) setSwitch("calc");            // 開機（順便把開關撥到 CAL）
+    else { state.power = false; stopTune(); }       // 關機
+    return;
+  }
+  if (!state.power){ return; }
+
+  /* 旋律模式 */
+  if (state.switchMode === "music"){
+    /* GAME：預設切回 CAL 直接開遊戲，免得卡在音樂模式；勾選設定則還原實機的「演奏內建曲」 */
+    if (k === "game"){
+      if (state.gameKeyTunes){ playTune(); }
+      else { setSwitch("calc"); gameStart(); }
+      return;
+    }
+    if (k === "d"){ playKeyNote(v); return; }
+    if (k === "sign"){ music.sharp = !music.sharp; tone(1600, 12, "square", 0.04); return; }
+    if (k === "bs"){ music.sharp = false; tone(1200, 12, "square", 0.04); return; }
+    if (k === "ac"){ stopTune(); music.sharp = false; return; }
+    if (k === "c"){ stopTune(); return; }
+    if (k === "melody"){ playTune(); return; }
+    return;
+  }
+
+  /* 遊戲中的特殊處理 */
+  if (state.mode === "game"){
+    if (k === "aim" || k === "fire"){
+      if (G.phase === "play"){ if (k === "aim") cycleAim(); else fireMissile(); }
+      else if (G.phase === "over"){ state.mode = "calc"; c_clear(true); }
+      else if (G.phase === "high" || G.phase === "cond"){ /* 播放動畫中，吞掉 */ }
+      return;
+    }
+    if (k === "ac" || k === "c"){
+      state.mode = "calc"; c_clear(true); SFX.click();
+      return;
+    }
+    if (k === "game"){
+      if (G.phase === "over" || G.phase === "result"){ gameStart(); return; }
+      return;
+    }
+    /* 其餘按鍵在遊戲中無效 */
+    return;
+  }
+
+  /* 電卓模式 */
+  switch (k){
+    case "game":    gameStart(); return;
+    case "melody":  setSwitch("music"); playTune(); return;
+    case "rate":    calc.taxRate = parseFloat(document.getElementById("opt-tax").value) || 0;
+                    tone(1600, 15, "square", 0.04); return;
+    case "taxin":   c_tax("taxin"); break;
+    case "taxout":  c_tax("taxout"); break;
+    case "d":       c_digit(v); break;
+    case "dot":     c_dot(); break;
+    case "sign":    c_sign(); break;
+    case "bs":      c_bs(); break;
+    case "c":       c_clear(false); break;
+    case "ac":      c_clear(true); break;
+    case "add":     c_op("add"); break;
+    case "sub":     c_op("sub"); break;
+    case "mul":     c_op("mul"); break;
+    case "div":     c_op("div"); break;
+    case "eq":      c_eq(); break;
+    case "pct":     c_pct(); break;
+    case "sqrt":    c_sqrt(); break;
+    case "m+": case "m-": case "mr": case "mc": c_mem(k); break;
+    case "aim":     SFX.miss(); return;
+    case "fire":    return;
+  }
+  SFX.click();
+}
+
+document.getElementById("keys").addEventListener("click", function(ev){
+  var btn = ev.target.closest ? ev.target.closest(".key") : null;
+  if (!btn) return;
+  btn.blur();                                   // 避免之後按空白鍵又觸發同一顆鍵
+  action(btn.dataset.k, btn.dataset.v);
+});
+
+/* 模式滑動開關 */
+document.getElementById("modeswitch").addEventListener("click", function(ev){
+  var btn = ev.target.closest ? ev.target.closest("button") : null;
+  if (!btn || !btn.dataset.sw) return;
+  btn.blur();
+  setSwitch(btn.dataset.sw);
+});
+
+/* 實體鍵盤 */
+document.addEventListener("keydown", function(ev){
+  if (ev.target && (ev.target.tagName === "INPUT")) return;
+  var k = ev.key;
+  var map = {
+    "0":"d","1":"d","2":"d","3":"d","4":"d","5":"d","6":"d","7":"d","8":"d","9":"d",
+    "+":"add","-":"sub","*":"mul","/":"div",".":"dot","Enter":"eq","=":"eq",
+    "Backspace":"bs","Escape":"ac","Delete":"ac","m":"mr","M":"mr",
+    "g":"game","G":"game","z":"aim","Z":"aim","ArrowLeft":"aim",
+    "x":"fire","X":"fire"," ":"fire","ArrowRight":"fire"
+  };
+  var act = map[k];
+  if (!act) return;
+  ev.preventDefault();
+  action(act, /^[0-9]$/.test(k) ? k : undefined);
+});
+
+/* 面板設定 */
+document.getElementById("opt-sound").addEventListener("change", function(e){ state.sound = e.target.checked; });
+document.getElementById("opt-gamekey").addEventListener("change", function(e){ state.gameKeyTunes = e.target.checked; });
+document.getElementById("opt-speed").addEventListener("input", function(e){
+  SPEED = parseFloat(e.target.value);
+  document.getElementById("speed-label").textContent = SPEED.toFixed(1) + "×（1.0× ≈ 實機）";
+});
+document.getElementById("opt-tax").addEventListener("change", function(e){
+  calc.taxRate = parseFloat(e.target.value) || 0;
+});
+
+/* =========================================================
+   10. 開機
+   ========================================================= */
+loadHigh();
+calc.taxRate = parseFloat(document.getElementById("opt-tax").value) || 10;
+render();
+requestAnimationFrame(loop);
+
+})();
+</script>
+</body>
+</html>
