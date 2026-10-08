@@ -320,6 +320,7 @@
         ② <b>iPhone 請確認側邊靜音鍵沒切到靜音</b>——iOS 會連 WebAudio 一起靜音，這點無法用程式繞過。
         ③ 確認媒體音量（不是鈴聲音量）已開大。
         ④ 頁面重新載入後若仍是舊版，請強制重新整理（<kbd>Ctrl</kbd>+<kbd>F5</kbd>）。</p>
+      <p class="warn"><b>操作回饋音</b>（實機有真實按鍵，這裡用聲音代替觸感）：數字鍵高音、運算子低沉、記憶鍵、<b>AIM</b> 短促高音、<b>FIRE</b> 光束下滑音、<b>GAME</b> 三音開場、MODE 切換音；遊戲中的命中／落空／被突破／UFO／過關／GAME OVER 各有專屬音效。</p>
       <div class="row">
         <label><input type="checkbox" id="opt-gamekey"> ♪ 模式下 GAME 鍵改為演奏內建曲<span class="badge">MG-880 實機行為</span></label>
       </div>
@@ -546,16 +547,39 @@ function sweep(f1, f2, ms, vol){
   osc.start(t0); osc.stop(t0 + ms/1000 + 0.02);
 }
 var SFX = {
-  click:  function(){ tone(1400, 14, "square", 0.07); },
+  click:  function(){ tone(1400, 14, "square", 0.07); },   // 泛用（保留給舊路徑）
+  /* 分鍵種的操作回饋：不同類型的鍵音高不同，沒有實體按鍵也能有觸感 */
+  digit:  function(){ tone(1900, 11, "square", 0.08); },
+  op:     function(){ tone(1150, 15, "square", 0.09); },
+  fn:     function(){ tone(1500, 14, "square", 0.08); },
+  mem:    function(){ tone(1250, 16, "square", 0.08); },
+  aim:    function(){ tone(1750, 10, "square", 0.08); },   // AIM：短促高音
+  fire:   function(){ sweep(2000, 900, 38, 0.10); },       // FIRE：光束感的下滑音
+  game:   function(){ tone(784, 40, "square", 0.10); tone(1175, 40, "square", 0.09, 45); tone(1568, 55, "square", 0.09, 90); },
+  mode:   function(){ tone(560, 26, "square", 0.09); },    // MODE 開關
   hit:    function(){ tone(1900, 30, "square", 0.13); tone(2600, 22, "square", 0.09, 32); },
   miss:   function(){ tone(150, 75, "square", 0.11); },
   invade: function(){ sweep(420, 120, 230, 0.15); },
   ufo:    function(){ tone(2200, 42, "square", 0.14); tone(1600, 42, "square", 0.14, 46); },
-  clear:  function(){ [784, 988, 1175, 1568].forEach(function(f,i){ tone(f, 95, "square", 0.12, i*95); }); },
+  roundup:function(){ [784, 988, 1175, 1568].forEach(function(f,i){ tone(f, 95, "square", 0.12, i*95); }); },
   over:   function(){ [440, 392, 330, 262].forEach(function(f,i){ tone(f, 175, "square", 0.13, i*170); }); },
   boot:   function(){ tone(1046, 45, "square", 0.10); },
   test:   function(){ [523, 659, 784, 1046].forEach(function(f,i){ tone(f, 130, "square", 0.14, i*140); }); }
 };
+SFX.clear = SFX.roundup;                                   // 相容舊呼叫
+/* 依按鍵種類選回饋音 */
+function keySound(k){
+  if (!state.sound) return;
+  if (/^[0-9]$/.test(k) || k === "dot") SFX.digit();
+  else if (k === "add" || k === "sub" || k === "mul" || k === "div") SFX.op();
+  else if (k === "eq" || k === "exe") SFX.digit();
+  else if (k === "aim") SFX.aim();
+  else if (k === "fire") SFX.fire();
+  else if (k === "game") SFX.game();
+  else if (k === "melody") SFX.mode();
+  else if (k === "m+" || k === "m-" || k === "mr" || k === "mc") SFX.mem();
+  else SFX.fn();
+}
 
 /* =========================================================
    3. 全域狀態
@@ -791,7 +815,7 @@ function gameStart(){
   G.score = 0;
   G.part = 1;
   G.round = 1;
-  tone(880, 60, "square", 0.09);
+  SFX.game();                                  // 開始遊戲的三音提示
 }
 function startCond(){
   G.phase = "cond";
@@ -839,6 +863,7 @@ function gameOver(){
 function fireMissile(){
   if (G.phase !== "play" || G.beams <= 0) return;
   G.beams--;
+  SFX.fire();                                   // 發射回饋（命中／落空音隨後）
   var want = G.aimUfo ? "n" : String(G.aim);
   var slot = -1;
   for (var i=0;i<6;i++){
@@ -869,7 +894,7 @@ function cycleAim(){
   if (G.aimUfo){ G.aimUfo = false; G.aim = 0; }
   else if (G.aim >= 9){ G.aimUfo = true; }
   else G.aim++;
-  tone(1000, 10, "square", 0.06);
+  SFX.aim();
 }
 
 function gameTick(dt){
@@ -1084,8 +1109,8 @@ function setSwitch(which){
   }
   document.getElementById("keys").classList.toggle("music", which === "music");
   if (which !== "music") stopTune();
-  if (which === "music"){ SFX.boot(); }
-  if (which === "calc"){ tone(1046, 40, "square", 0.10); }
+  if (which === "music"){ SFX.mode(); }
+  if (which === "calc"){ SFX.mode(); }
 }
 
 /* =========================================================
@@ -1120,12 +1145,12 @@ function action(k, v){
   if (state.mode === "game"){
     if (k === "aim" || k === "fire"){
       if (G.phase === "play"){ if (k === "aim") cycleAim(); else fireMissile(); }
-      else if (G.phase === "over"){ state.mode = "calc"; c_clear(true); }
+      else if (G.phase === "over"){ state.mode = "calc"; c_clear(true); SFX.fn(); }
       else if (G.phase === "high" || G.phase === "cond"){ /* 播放動畫中，吞掉 */ }
       return;
     }
     if (k === "ac" || k === "c"){
-      state.mode = "calc"; c_clear(true); SFX.click();
+      state.mode = "calc"; c_clear(true); keySound(k);
       return;
     }
     if (k === "game"){
@@ -1158,10 +1183,10 @@ function action(k, v){
     case "pct":     c_pct(); break;
     case "sqrt":    c_sqrt(); break;
     case "m+": case "m-": case "mr": case "mc": c_mem(k); break;
-    case "aim":     SFX.miss(); return;
+    case "aim":     SFX.aim(); return;
     case "fire":    return;
   }
-  SFX.click();
+  keySound(k);
 }
 
 document.getElementById("keys").addEventListener("click", function(ev){

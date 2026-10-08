@@ -211,6 +211,32 @@ function switchTo(sw) {
   catch (e) { volErr = e.message; }
   ok(volErr === null, "音量滑桿可運作不丟錯", volErr);
 
+  /* 分鍵種的操作回饋音 */
+  clickKey("ac"); frames(1);
+  let t = toneCount;
+  clickKey("d", "7"); frames(1);
+  ok(toneCount > t, "數字鍵有回饋音");
+  t = toneCount; clickKey("add"); frames(1);
+  ok(toneCount > t, "運算子鍵有回饋音");
+  t = toneCount; clickKey("sqrt"); frames(1);
+  ok(toneCount > t, "功能鍵有回饋音");
+  t = toneCount; clickKey("mr"); frames(1);
+  ok(toneCount > t, "記憶鍵有回饋音");
+  t = toneCount; clickKey("game"); frames(1);
+  ok(toneCount - t >= 3, "GAME 有三音開場（" + (toneCount - t) + " 個）");
+  framesFor(3300);                        // 等它進入遊戲
+  t = toneCount; press("z"); frames(1);   // AIM
+  ok(toneCount > t, "遊戲中 AIM 有回饋音");
+  t = toneCount; press("x"); frames(1);   // FIRE（發射音 + 命中／落空）
+  ok(toneCount - t >= 2, "遊戲中 FIRE 有發射音與結果音（" + (toneCount - t) + " 個）");
+  clickKey("ac"); frames(1);
+  t = toneCount; switchTo("music");
+  ok(toneCount > t, "MODE 開關切換有回饋音");
+  switchTo("calc"); frames(1);
+  t = toneCount; clickKey("d", "1");
+  ok(toneCount > t, "旋律模式按鍵（ド）也有聲音");
+  clickKey("ac"); frames(1);
+
   console.log("\n=== MG-880 旋律模式 / 模式開關 ===");
   clickKey("ac"); frames(1);
 
@@ -234,7 +260,7 @@ function switchTo(sw) {
   frames(1);
   ok(!els.keys._cls.has("music"), "♪ 模式下按 GAME：離開音樂模式", els.keys.className);
   ok(subText().indexOf("HIGH SCORE") >= 0, "♪ 模式下按 GAME：直接開始遊戲", subText());
-  ok(toneCount - tuneAtGamePress <= 2, "沒有順便播內建曲（只有模式切換與開局提示音，實際 " +
+  ok(toneCount - tuneAtGamePress <= 4, "沒有順便播內建曲（只有 MODE 切換音 + GAME 三音開場，實際 " +
     (toneCount - tuneAtGamePress) + " 聲）");
 
   // 回音樂模式，改用 ♪ 鍵聽內建曲
